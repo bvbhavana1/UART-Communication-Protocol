@@ -10,7 +10,17 @@ UART is one of the simplest and most widely used serial communication protocols,
 The design handles the two hardest parts of UART implementation:
 1. **Asynchronous input synchronization** — since `rx_in` arrives from an external, unclocked source, it must be safely brought into the RX clock domain without causing metastability.
 2. **Bit-level framing** — correctly detecting the start bit, sampling each data bit at its mid-point (not at the edge, where the signal may not have settled), and validating the stop bit to catch framing errors.
+## ⭐ Key Highlights
+Designed an 8-bit synthesizable UART TX/RX RTL core in Verilog with independent TX/RX clock domains and configurable enable/control logic.
+Implemented robust UART receive logic with a 2-FF asynchronous input synchronizer, start-bit detection, mid-bit sampling, and stop-bit validation.
+Added hardware error handling for framing and overrun errors, improving reliability during asynchronous serial communication.
+Verified the complete TX→RX data path using a self-checking loopback testbench in Cadence NCLaunch/SimVision, including waveform-based debugging.
+Synthesized the RTL using Cadence Genus, achieving a mapped design of 124 standard-cell instances and 1341.984 µm² area, with sequential logic accounting for 72.53% of total area.
 
+
+## 🔧 Engineering Focus
+
+RTL Design · CDC Synchronization · UART Protocol · Digital Verification · Waveform Debugging · Logic Synthesis · Cadence Genus · SimVision
 ## Features
 
 - 8-bit parallel-to-serial (TX) and serial-to-parallel (RX) data conversion
