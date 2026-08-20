@@ -112,27 +112,27 @@ Sampling exactly at a signal transition can be unreliable because the serial lin
 
 ```text
                               UART TX PATH
-                    ┌────────────────────────┐
+                     ┌────────────────────────┐
  tx_data ──────────▶│                        │
  ld_tx_data ───────▶│       TX Logic         │──────▶ tx_out
  tx_enable ────────▶│   Parallel → Serial    │
  txclk ────────────▶│                        │──────▶ tx_empty
-                    └────────────────────────┘
+                     └────────────────────────┘
                               │
                               │ UART Serial Data
                               ▼
-                    ┌────────────────────────┐
+                     ┌────────────────────────┐
  rx_in ────────────▶│    2-FF Synchronizer   │
                     │     rx_d1 → rx_d2      │
                     └───────────┬────────────┘
                                 │
                                 ▼
-                    ┌────────────────────────┐
+                     ┌────────────────────────┐
  rxclk ─────────────▶│                        │
  rx_enable ─────────▶│       RX Logic         │──────▶ rx_data[7:0]
  uld_rx_data ───────▶│   Serial → Parallel    │──────▶ rx_empty
-                    │                        │
-                    └────────────────────────┘
+                     │                        │
+                     └────────────────────────┘
 ```
 
 The architecture is divided into two independently clocked sections:
