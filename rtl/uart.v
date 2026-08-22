@@ -1,15 +1,19 @@
 `timescale 1ns / 1ps
-module uart(reset, tx_clk, ld_tx_data, tx_data, tx_enable, tx_out, tx_empty, rx_clk, uld_rx_data, rx_data, rx_enable, rx_in, rx_empty);
+
+module uart(
+    reset, txclk, ld_tx_data, tx_data, tx_enable, tx_out, tx_empty,
+    rxclk, uld_rx_data, rx_data, rx_enable, rx_in, rx_empty
+);
+
 // Port declarations
 input reset;
-input tx_clk;
+input txclk;
 input ld_tx_data;
 input [7:0] tx_data;
 input tx_enable;
 output tx_out;
 output tx_empty;
-
-input rx_clk;
+input rxclk;
 input uld_rx_data;
 output [7:0] rx_data;
 input rx_enable;
@@ -33,89 +37,100 @@ reg rx_empty;
 reg rx_d1;
 reg rx_d2;
 reg rx_busy;
+
+//====================================================
 // UART RX Logic
-    always @(posedge rxclk or posedge reset)
+// 8x-oversampling receiver: rxclk must run 8x faster
+// than txclk (see testbench clock divider).
+//====================================================
+always @(posedge rxclk or posedge reset)
+begin
+    if (reset)
     begin
-        if (reset)
+        rx_reg         <= 8'd0;
+        rx_data        <= 8'd0;
+        rx_sample_cnt  <= 4'd0;
+        rx_cnt         <= 4'd0;
+        rx_frame_err   <= 1'b0;
+        rx_over_run    <= 1'b0;
+        rx_empty       <= 1'b1;
+        rx_d1          <= 1'b1;
+        rx_d2          <= 1'b1;
+        rx_busy        <= 1'b0;
+    end
+    else
+    begin
+        // Synchronize asynchronous input
+        rx_d1 <= rx_in;
+        rx_d2 <= rx_d1;
+
+        // Unload RX data
+        if (uld_rx_data)
         begin
-            rx_reg <= 8'd0;
-            rx_data <= 8'd0;
-            rx_sample_cnt <= 4'd0;
-            rx_cnt <= 4'd0;
-            rx_frame_err <= 1'b0;
-            rx_over_run <= 1'b0;
+            rx_data  <= rx_reg;
             rx_empty <= 1'b1;
-            rx_d1 <= 1'b1;
-            rx_d2 <= 1'b1;
-            rx_busy <= 1'b0;
         end
-        else
+
+        if (rx_enable)
         begin
-            // Synchronize asynchronous input
-            rx_d1 <= rx_in;
-            rx_d2 <= rx_d1;
-            // Unload RX data
-            if (uld_rx_data)
+            // Detect start bit
+            if (!rx_busy && !rx_d2)
             begin
-                rx_data <= rx_reg;
-                rx_empty <= 1'b1;
+                rx_busy       <= 1'b1;
+                rx_sample_cnt <= 4'd1;
+                rx_cnt        <= 4'd0;
             end
-            if (rx_enable)
+
+            if (rx_busy)
             begin
-                // Detect start bit
-                if (!rx_busy && !rx_d2)
+                rx_sample_cnt <= rx_sample_cnt + 1'b1;
+
+                // Sample in the middle of the bit window
+                if (rx_sample_cnt == 4'd7)
                 begin
-                    rx_busy <= 1'b1;
-                    rx_sample_cnt <= 4'd1;
-                    rx_cnt <= 4'd0;
-                end
-                if (rx_busy)
-                begin
-                    rx_sample_cnt <= rx_sample_cnt + 1'b1;
-                    // Sample in middle of bit
-                  end
-        if (rx_busy)
-        begin
-            rx_sample_cnt <= rx_sample_cnt + 1'b1;
-            // Sample in middle of bit
-            if (rx_sample_cnt == 4'd7)
-            begin
-                rx_cnt <= rx_cnt + 1'b1;
-                if ((rx_d2 == 1'b1) && (rx_cnt == 4'd0))
-                    rx_busy <= 1'b0;
-                else
-                begin
-                    if (rx_cnt > 0 && rx_cnt < 9)
-                        rx_reg[rx_cnt-1] <= rx_d2;
-                    if (rx_cnt == 4'd9)
-                    begin
+                    rx_cnt <= rx_cnt + 1'b1;
+
+                    if ((rx_d2 == 1'b1) && (rx_cnt == 4'd0))
                         rx_busy <= 1'b0;
-                        if (!rx_d2)
-                            rx_frame_err <= 1'b1;
-                        else
+                    else
+                    begin
+                        if (rx_cnt > 0 && rx_cnt < 9)
+                            rx_reg[rx_cnt-1] <= rx_d2;
+
+                        if (rx_cnt == 4'd9)
                         begin
-                            rx_empty <= 1'b0;
-                            rx_frame_err <= 1'b0;
+                            rx_busy <= 1'b0;
+                            if (!rx_d2)
+                                rx_frame_err <= 1'b1;
+                            else
+                            begin
+                                rx_empty     <= 1'b0;
+                                rx_frame_err <= 1'b0;
+                            end
+                            rx_over_run <= (rx_empty) ? 1'b0 : 1'b1;
                         end
-                        rx_over_run <= (rx_empty) ? 1'b0 : 1'b1;
                     end
+                    rx_sample_cnt <= 4'd0;
                 end
-                rx_sample_cnt <= 4'd0;
             end
         end
+
         if (!rx_enable)
             rx_busy <= 1'b0;
     end
 end
+
+//====================================================
 // UART TX Logic
+//====================================================
 always @(posedge txclk or posedge reset)
 begin
     if (reset) begin
-        tx_reg <= 8'd0;
-        tx_empty <= 1'b1;
+        tx_reg      <= 8'd0;
+        tx_empty    <= 1'b1;
         tx_over_run <= 1'b0;
-        tx_out <= 1'b1;
-        tx_cnt <= 4'd0;
+        tx_out      <= 1'b1;
+        tx_cnt      <= 4'd0;
     end else begin
         if (ld_tx_data)
         begin
@@ -123,10 +138,11 @@ begin
                 tx_over_run <= 1'b1;
             else
             begin
-                tx_reg <= tx_data;
+                tx_reg   <= tx_data;
                 tx_empty <= 1'b0;
             end
         end
+
         if (tx_enable && !tx_empty)
         begin
             tx_cnt <= tx_cnt + 1'b1;
@@ -136,13 +152,15 @@ begin
                 tx_out <= tx_reg[tx_cnt-1];
             if (tx_cnt == 9)
             begin
-                tx_out <= 1'b1; // Stop bit
-                tx_cnt <= 4'd0;
+                tx_out   <= 1'b1; // Stop bit
+                tx_cnt   <= 4'd0;
                 tx_empty <= 1'b1;
             end
         end
+
         if (!tx_enable)
             tx_cnt <= 4'd0;
     end
 end
+
 endmodule
